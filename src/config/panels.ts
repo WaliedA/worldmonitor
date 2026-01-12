@@ -25,6 +25,7 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   layoffs: { name: 'Layoffs Tracker', enabled: false, priority: 2 },
   monitors: { name: 'My Monitors', enabled: true, priority: 2 },
   'black-swan': { name: 'Black Swan Detector', enabled: true, priority: 2 },
+  'uae-economic': { name: 'UAE Economic Analysis', enabled: true, priority: 2 },
 };
 
 export const DEFAULT_MAP_LAYERS: MapLayers = {

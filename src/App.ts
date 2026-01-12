@@ -34,6 +34,7 @@ import {
   GdeltIntelPanel,
   LiveNewsPanel,
   BlackSwanPanel,
+  UAEEconomicPanel,
 } from '@/components';
 import type { SearchResult } from '@/components/SearchModal';
 import { INTEL_HOTSPOTS, CONFLICT_ZONES, MILITARY_BASES, UNDERSEA_CABLES, NUCLEAR_FACILITIES } from '@/config/geo';
@@ -667,9 +668,12 @@ export class App {
     const blackSwanPanel = new BlackSwanPanel();
     this.panels['black-swan'] = blackSwanPanel;
 
+    const uaeEconomicPanel = new UAEEconomicPanel();
+    this.panels['uae-economic'] = uaeEconomicPanel;
+
     // Add panels to grid in saved order (optimized for geopolitical analysis)
     // Row 1: Intel + breaking events | Row 2: Market signals | Row 3: Supporting context
-    const defaultOrder = ['live-news', 'intel', 'gdelt-intel', 'politics', 'middleeast', 'gov', 'thinktanks', 'polymarket', 'commodities', 'markets', 'economic', 'finance', 'tech', 'crypto', 'heatmap', 'ai', 'layoffs', 'black-swan', 'monitors'];
+    const defaultOrder = ['live-news', 'intel', 'gdelt-intel', 'politics', 'middleeast', 'gov', 'thinktanks', 'polymarket', 'commodities', 'markets', 'economic', 'finance', 'tech', 'crypto', 'heatmap', 'ai', 'layoffs', 'black-swan', 'uae-economic', 'monitors'];
     const savedOrder = this.getSavedPanelOrder();
     // Merge saved order with default to include new panels
     let panelOrder = defaultOrder;
@@ -1642,6 +1646,17 @@ export class App {
     }
   }
 
+  private async updateUAEEconomicAnalysis(): Promise<void> {
+    const uaePanel = this.panels['uae-economic'] as UAEEconomicPanel | undefined;
+    if (!uaePanel) return;
+
+    try {
+      await uaePanel.updateAnalysis();
+    } catch (error) {
+      console.error('[App] UAE Economic Analysis update failed:', error);
+    }
+  }
+
   private setupRefreshIntervals(): void {
     // Always refresh news, markets, predictions, pizzint
     this.scheduleRefresh('news', () => this.loadNews(), REFRESH_INTERVALS.feeds);
@@ -1649,6 +1664,7 @@ export class App {
     this.scheduleRefresh('predictions', () => this.loadPredictions(), REFRESH_INTERVALS.predictions);
     this.scheduleRefresh('pizzint', () => this.loadPizzInt(), 10 * 60 * 1000);
     this.scheduleRefresh('black-swan', () => this.updateBlackSwanScore(), 60 * 1000); // every minute
+    this.scheduleRefresh('uae-economic', () => this.updateUAEEconomicAnalysis(), 5 * 60 * 1000); // every 5 minutes
 
     // Only refresh layer data if layer is enabled
     this.scheduleRefresh('earthquakes', () => this.loadEarthquakes(), 5 * 60 * 1000, () => this.mapLayers.earthquakes);
