@@ -33,6 +33,7 @@ import {
   PizzIntIndicator,
   GdeltIntelPanel,
   LiveNewsPanel,
+  BlackSwanPanel,
 } from '@/components';
 import type { SearchResult } from '@/components/SearchModal';
 import { INTEL_HOTSPOTS, CONFLICT_ZONES, MILITARY_BASES, UNDERSEA_CABLES, NUCLEAR_FACILITIES } from '@/config/geo';
@@ -40,6 +41,8 @@ import { PIPELINES } from '@/config/pipelines';
 import { AI_DATA_CENTERS } from '@/config/ai-datacenters';
 import { GAMMA_IRRADIATORS } from '@/config/irradiators';
 import type { PredictionMarket, MarketData, ClusteredEvent } from '@/types';
+import type { BlackSwanSnapshot } from '@/services/black-swan';
+import type { Earthquake } from '@/types';
 
 export class App {
   private container: HTMLElement;
@@ -60,6 +63,9 @@ export class App {
   private latestPredictions: PredictionMarket[] = [];
   private latestMarkets: MarketData[] = [];
   private latestClusters: ClusteredEvent[] = [];
+  private latestEarthquakes: Earthquake[] = [];
+  private latestOutagesCount: number = 0;
+  private baselineNewsCount: number = 50;
   private isPlaybackMode = false;
   private initialUrlState: ParsedMapUrlState | null = null;
   private inFlight: Set<string> = new Set();
@@ -658,9 +664,12 @@ export class App {
     const liveNewsPanel = new LiveNewsPanel();
     this.panels['live-news'] = liveNewsPanel;
 
+    const blackSwanPanel = new BlackSwanPanel();
+    this.panels['black-swan'] = blackSwanPanel;
+
     // Add panels to grid in saved order (optimized for geopolitical analysis)
     // Row 1: Intel + breaking events | Row 2: Market signals | Row 3: Supporting context
-    const defaultOrder = ['live-news', 'intel', 'gdelt-intel', 'politics', 'middleeast', 'gov', 'thinktanks', 'polymarket', 'commodities', 'markets', 'economic', 'finance', 'tech', 'crypto', 'heatmap', 'ai', 'layoffs', 'monitors'];
+    const defaultOrder = ['live-news', 'intel', 'gdelt-intel', 'politics', 'middleeast', 'gov', 'thinktanks', 'polymarket', 'commodities', 'markets', 'economic', 'finance', 'tech', 'crypto', 'heatmap', 'ai', 'layoffs', 'black-swan', 'monitors'];
     const savedOrder = this.getSavedPanelOrder();
     // Merge saved order with default to include new panels
     let panelOrder = defaultOrder;
@@ -1305,6 +1314,7 @@ export class App {
   private async loadEarthquakes(): Promise<void> {
     try {
       const earthquakes = await fetchEarthquakes();
+      this.latestEarthquakes = earthquakes;
       this.map?.setEarthquakes(earthquakes);
       this.map?.setLayerReady('earthquakes', earthquakes.length > 0);
       this.statusPanel?.updateApi('USGS', { status: 'ok' });
@@ -1329,6 +1339,7 @@ export class App {
   private async loadOutages(): Promise<void> {
     try {
       const outages = await fetchInternetOutages();
+      this.latestOutagesCount = outages.length;
       this.map?.setOutages(outages);
       this.map?.setLayerReady('outages', outages.length > 0);
       this.statusPanel?.updateFeed('NetBlocks', { status: 'ok', itemCount: outages.length });
@@ -1572,12 +1583,72 @@ export class App {
     setTimeout(run, intervalMs);
   }
 
+  private async updateBlackSwanScore(): Promise<void> {
+    const blackSwanPanel = this.panels['black-swan'] as BlackSwanPanel | undefined;
+    if (!blackSwanPanel) return;
+
+    try {
+      // Build snapshot from latest cached data
+      const snapshot: BlackSwanSnapshot = {};
+
+      // Market signals: compute recent return and volatility from latest markets
+      if (this.latestMarkets.length > 0) {
+        // Use S&P 500 or first major index as proxy
+        const spx = this.latestMarkets.find(m => m.symbol === '^GSPC');
+        if (spx && spx.change !== null) {
+          snapshot.marketReturn = spx.change / 100; // convert percentage to decimal
+        }
+
+        // VIX as volatility proxy
+        const vix = this.latestMarkets.find(m => m.symbol === '^VIX');
+        if (vix && vix.price !== null) {
+          snapshot.marketVolatility = vix.price / 100;
+        }
+      }
+
+      // News surge: compare current news count to baseline
+      if (this.allNews.length > 0) {
+        const recentWindow = 3 * 60 * 60 * 1000; // 3 hours
+        const now = Date.now();
+        const recentNews = this.allNews.filter(n => {
+          const age = now - new Date(n.date).getTime();
+          return age < recentWindow;
+        });
+        snapshot.newsCount = recentNews.length;
+        snapshot.newsBaseline = this.baselineNewsCount;
+      }
+
+      // Earthquake data
+      if (this.latestEarthquakes.length > 0) {
+        const magnitudes = this.latestEarthquakes.map(e => e.magnitude);
+        snapshot.earthquakeMaxMag = Math.max(...magnitudes);
+        snapshot.earthquakeCount = this.latestEarthquakes.length;
+      }
+
+      // Outages count (if available)
+      if (this.latestOutagesCount > 0) {
+        snapshot.outagesCount = this.latestOutagesCount;
+        snapshot.outagesBaseline = 3; // typical baseline
+      }
+
+      // Flight and AIS anomalies (stub for now, can be enhanced)
+      // These would come from analysis of military flights, AIS patterns, etc.
+      snapshot.flightAnomalies = 0;
+      snapshot.aisAnomalies = 0;
+
+      blackSwanPanel.updateLiveScore(snapshot);
+    } catch (error) {
+      console.error('[App] Black Swan update failed:', error);
+    }
+  }
+
   private setupRefreshIntervals(): void {
     // Always refresh news, markets, predictions, pizzint
     this.scheduleRefresh('news', () => this.loadNews(), REFRESH_INTERVALS.feeds);
     this.scheduleRefresh('markets', () => this.loadMarkets(), REFRESH_INTERVALS.markets);
     this.scheduleRefresh('predictions', () => this.loadPredictions(), REFRESH_INTERVALS.predictions);
     this.scheduleRefresh('pizzint', () => this.loadPizzInt(), 10 * 60 * 1000);
+    this.scheduleRefresh('black-swan', () => this.updateBlackSwanScore(), 60 * 1000); // every minute
 
     // Only refresh layer data if layer is enabled
     this.scheduleRefresh('earthquakes', () => this.loadEarthquakes(), 5 * 60 * 1000, () => this.mapLayers.earthquakes);
