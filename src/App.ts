@@ -1615,7 +1615,7 @@ export class App {
         const recentWindow = 3 * 60 * 60 * 1000; // 3 hours
         const now = Date.now();
         const recentNews = this.allNews.filter(n => {
-          const age = now - new Date(n.date).getTime();
+          const age = now - new Date(n.pubDate).getTime();
           return age < recentWindow;
         });
         snapshot.newsCount = recentNews.length;
