@@ -1,7 +1,45 @@
 import type { Feed } from '@/types';
 
 // Helper to create RSS proxy URL (Vercel)
-const rss = (url: string) => `/api/rss-proxy?url=${encodeURIComponent(url)}`;
+// In dev, map well-known feed hosts to Vite local proxy prefixes defined in vite.config.ts
+const rss = (url: string) => {
+  try {
+    if (import.meta.env.DEV) {
+      const u = new URL(url);
+      const hostMap: Record<string, string> = {
+        'feeds.bbci.co.uk': '/rss/bbc',
+        'www.theguardian.com': '/rss/guardian',
+        'feeds.npr.org': '/rss/npr',
+        'rss.cnn.com': '/rss/cnn',
+        'hnrss.org': '/rss/hn',
+        'feeds.arstechnica.com': '/rss/arstechnica',
+        'www.theverge.com': '/rss/verge',
+        'www.cnbc.com': '/rss/cnbc',
+        'feeds.marketwatch.com': '/rss/marketwatch',
+        'www.defenseone.com': '/rss/defenseone',
+        'breakingdefense.com': '/rss/breakingdefense',
+        'www.bellingcat.com': '/rss/bellingcat',
+        'techcrunch.com': '/rss/techcrunch',
+        'news.google.com': '/rss/googlenews',
+        'openai.com': '/rss/openai',
+        'huggingface.co': '/rss/huggingface',
+        'www.technologyreview.com': '/rss/techreview',
+        'rss.arxiv.org': '/rss/arxiv',
+        'www.reutersagency.com': '/rss/reuters',
+        'feeds.reuters.com': '/rss/reuters',
+      };
+
+      const prefix = hostMap[u.hostname];
+      if (prefix) {
+        return prefix + (u.pathname || '/') + (u.search || '');
+      }
+    }
+  } catch (e) {
+    // Fall back to serverless proxy URL
+  }
+
+  return `/api/rss-proxy?url=${encodeURIComponent(url)}`;
+};
 
 // Source tier system for prioritization (lower = more authoritative)
 // Tier 1: Wire services - fastest, most reliable breaking news
