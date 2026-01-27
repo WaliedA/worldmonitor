@@ -15,3 +15,5 @@ export * from './MobileWarningModal';
 export * from './PizzIntIndicator';
 export * from './GdeltIntelPanel';
 export * from './LiveNewsPanel';
+export * from './BlackSwanPanel';
+export * from './UAEEconomicPanel';

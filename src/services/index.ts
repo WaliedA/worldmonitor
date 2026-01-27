@@ -1,6 +1,7 @@
 export * from './rss';
 export * from './markets';
 export * from './polymarket';
+export * from './black-swan';
 export * from './earthquakes';
 export * from './clustering';
 export * from './related-assets';
